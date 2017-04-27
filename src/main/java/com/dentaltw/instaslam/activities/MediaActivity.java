@@ -26,6 +26,7 @@ import android.widget.ImageView;
 import com.dentaltw.instaslam.R;
 import com.dentaltw.instaslam.models.InstaImage;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 /**
@@ -280,10 +281,35 @@ public class MediaActivity extends AppCompatActivity {
         public void updateUI(InstaImage image){
             if(this.imageView!=null && image!=null){
                 this.imageView.setImageBitmap(decodeURI(image.getUrl().getPath()));
+                DecodeBitmap task = new DecodeBitmap(imageView, image);
+                task.execute();
             }
         }
     }
 
+    class DecodeBitmap extends AsyncTask<Void, Void, Bitmap>{
+        private final WeakReference<ImageView> imageViewWeakReference;
+        private InstaImage image;
+
+        public DecodeBitmap(ImageView imageView, InstaImage image) {
+            this.imageViewWeakReference = new WeakReference(imageView);
+            this.image = image;
+        }
+
+        @Override
+        protected Bitmap doInBackground(Void... params) {
+            return decodeURI(image.getUrl().getPath());
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap bitmap) {
+            super.onPostExecute(bitmap);
+            final ImageView img = imageViewWeakReference.get();
+            if(img!=null){
+                img.setImageBitmap(bitmap);
+            }
+        }
+    }
 
     public Bitmap decodeURI(String filePath) {
         BitmapFactory.Options options = new BitmapFactory.Options();
