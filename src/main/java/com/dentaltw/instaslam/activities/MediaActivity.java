@@ -1,13 +1,24 @@
 package com.dentaltw.instaslam.activities;
 
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.MediaStore;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import com.dentaltw.instaslam.R;
+import com.dentaltw.instaslam.models.InstaImage;
+
+import java.util.ArrayList;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -84,6 +95,10 @@ public class MediaActivity extends AppCompatActivity {
         }
     };
 
+    final int PERMISSION_READ_EXTERNAL = 4444;
+
+    private ArrayList<InstaImage> images = new ArrayList();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -103,10 +118,44 @@ public class MediaActivity extends AppCompatActivity {
             }
         });
 
-        // Upon interacting with UI controls, delay any scheduled hide()
-        // operations to prevent the jarring behavior of controls going away
-        // while interacting with the UI.
+        String android_permission = android.Manifest.permission.READ_EXTERNAL_STORAGE;
+
+        if(ContextCompat.checkSelfPermission(this, android_permission)!= PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, new String[]{android_permission},PERMISSION_READ_EXTERNAL);
+
+        }else {
+             retrieveImages();
+        }
+
         findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case PERMISSION_READ_EXTERNAL:{
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    retrieveImages();
+                }
+            }
+        }
+    }
+
+    public void retrieveImages(){
+        Log.v("DONKEY", "retrieveImages");
+        images.clear();
+        Cursor cursor = getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, null, null, null);
+        Log.v("DONKEY",String.valueOf(cursor==null));
+        if(cursor!=null){
+            cursor.moveToFirst();
+            for(int x=0;x<cursor.getCount();x++){
+                cursor.moveToPosition(x);
+                Log.v("DONKEY", "URL: "+cursor.getString(1));
+                InstaImage img = new InstaImage(Uri.parse(cursor.getString(1)));
+                images.add(img);
+            }
+        }
     }
 
     @Override
