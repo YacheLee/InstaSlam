@@ -3,7 +3,10 @@ package com.dentaltw.instaslam.activities;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.MediaStore;
@@ -12,9 +15,14 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
+import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
 import com.dentaltw.instaslam.R;
 import com.dentaltw.instaslam.models.InstaImage;
 
@@ -98,6 +106,7 @@ public class MediaActivity extends AppCompatActivity {
     final int PERMISSION_READ_EXTERNAL = 4444;
 
     private ArrayList<InstaImage> images = new ArrayList();
+    private ImageView selectedImage;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -118,16 +127,23 @@ public class MediaActivity extends AppCompatActivity {
             }
         });
 
-        String android_permission = android.Manifest.permission.READ_EXTERNAL_STORAGE;
+        selectedImage = (ImageView)findViewById(R.id.selected_image);
 
+        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.content_images);
+        ImagesAdapter adapter = new ImagesAdapter(images);
+        recyclerView.setAdapter(adapter);
+
+        GridLayoutManager layoutManager = new GridLayoutManager(getBaseContext(), 4);
+        layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        recyclerView.setLayoutManager(layoutManager);
+
+        String android_permission = android.Manifest.permission.READ_EXTERNAL_STORAGE;
         if(ContextCompat.checkSelfPermission(this, android_permission)!= PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(this, new String[]{android_permission},PERMISSION_READ_EXTERNAL);
 
         }else {
-             retrieveImages();
+            retrieveAndSetImages();
         }
-
-        findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
     }
 
     @Override
@@ -136,26 +152,33 @@ public class MediaActivity extends AppCompatActivity {
         switch (requestCode) {
             case PERMISSION_READ_EXTERNAL:{
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    retrieveImages();
+                    retrieveAndSetImages();
                 }
             }
         }
     }
 
-    public void retrieveImages(){
-        Log.v("DONKEY", "retrieveImages");
-        images.clear();
-        Cursor cursor = getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, null, null, null);
-        Log.v("DONKEY",String.valueOf(cursor==null));
-        if(cursor!=null){
-            cursor.moveToFirst();
-            for(int x=0;x<cursor.getCount();x++){
-                cursor.moveToPosition(x);
-                Log.v("DONKEY", "URL: "+cursor.getString(1));
-                InstaImage img = new InstaImage(Uri.parse(cursor.getString(1)));
-                images.add(img);
+    public void retrieveAndSetImages(){
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                images.clear();
+                Cursor cursor = getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, null, null, null);
+                if(cursor!=null){
+                    cursor.moveToFirst();
+                    for(int x=0;x<cursor.getCount();x++){
+                        cursor.moveToPosition(x);
+                        InstaImage img = new InstaImage(Uri.parse(cursor.getString(1)));
+                        images.add(img);
+                    }
+                }
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                    }
+                });
             }
-        }
+        });
     }
 
     @Override
@@ -210,4 +233,80 @@ public class MediaActivity extends AppCompatActivity {
         mHideHandler.removeCallbacks(mHideRunnable);
         mHideHandler.postDelayed(mHideRunnable, delayMillis);
     }
+
+    public class ImagesAdapter extends RecyclerView.Adapter<ImageViewHolder>{
+        private ArrayList<InstaImage> images;
+
+        public ImagesAdapter(ArrayList<InstaImage> images) {
+            this.images = images;
+        }
+
+        @Override
+        public ImageViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View card = LayoutInflater.from(parent.getContext()).inflate(R.layout.card_image, parent, false);
+            return new ImageViewHolder(card);
+        }
+
+        @Override
+        public void onBindViewHolder(ImageViewHolder holder, int position) {
+            final InstaImage image = images.get(position);
+            holder.updateUI(image);
+
+            final ImageViewHolder viewHolder = holder;
+
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectedImage.setImageDrawable(viewHolder.imageView.getDrawable());
+                }
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return images.size();
+        }
+    }
+
+    public class ImageViewHolder extends RecyclerView.ViewHolder{
+
+        private ImageView imageView;
+
+        public ImageViewHolder(View itemView) {
+            super(itemView);
+            imageView = (ImageView) findViewById(R.id.image_thumb);
+        }
+
+        public void updateUI(InstaImage image){
+            if(this.imageView!=null && image!=null){
+                this.imageView.setImageBitmap(decodeURI(image.getUrl().getPath()));
+            }
+        }
+    }
+
+
+    public Bitmap decodeURI(String filePath) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, options);
+
+        // Only scale if we need to
+        // (16384 buffer for img processing)
+        Boolean scaleByHeight = Math.abs(options.outHeight - 100) >= Math.abs(options.outWidth - 100);
+        if(options.outHeight * options.outWidth * 2 >= 16384){
+            // Load, scaling to smallest power of 2 that'll get it <= desired dimensions
+            double sampleSize = scaleByHeight
+                    ? options.outHeight / 1000
+                    : options.outWidth / 1000;
+            options.inSampleSize =
+                    (int)Math.pow(2d, Math.floor(
+                            Math.log(sampleSize)/Math.log(2d)));
+        }
+
+        options.inJustDecodeBounds = false;
+        options.inTempStorage = new byte[512];
+
+        return BitmapFactory.decodeFile(filePath, options);
+    }
+
 }

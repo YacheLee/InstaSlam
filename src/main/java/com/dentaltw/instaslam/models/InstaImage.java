@@ -9,6 +9,10 @@ import android.net.Uri;
 public class InstaImage {
     private Uri url;
 
+    public Uri getUrl() {
+        return url;
+    }
+
     public InstaImage(Uri url) {
         this.url = url;
     }
