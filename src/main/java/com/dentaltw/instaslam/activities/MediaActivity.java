@@ -275,15 +275,12 @@ public class MediaActivity extends AppCompatActivity {
 
         public ImageViewHolder(View itemView) {
             super(itemView);
-            imageView = (ImageView) findViewById(R.id.image_thumb);
+            imageView = (ImageView) itemView.findViewById(R.id.image_thumb);
         }
 
         public void updateUI(InstaImage image){
-            if(this.imageView!=null && image!=null){
-                this.imageView.setImageBitmap(decodeURI(image.getUrl().getPath()));
-                DecodeBitmap task = new DecodeBitmap(imageView, image);
-                task.execute();
-            }
+            DecodeBitmap task = new DecodeBitmap(imageView,image);
+            task.execute();
         }
     }
 
